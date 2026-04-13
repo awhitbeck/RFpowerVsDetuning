@@ -1,6 +1,60 @@
-# Description of PowerCal650V2.m
+# Genesis Resonance Control
+
+## PowerCal650V2 — RF Power Requirements Calculator
 
 **Source presentation:** "Power requirements for the PIP II linac," B. Chase and V. Yakovlev, Fermilab, 19 July 2018.
+
+This script computes the RF generator power required to maintain stable accelerating fields in SRF cavities across three accelerator systems: PIP-II (325 MHz and 650 MHz) and LCLS-II / LCLS-II HE (1300 MHz). It produces three plots and prints key intermediate quantities to the terminal for cross-validation.
+
+---
+
+## Running the Python script
+
+**Requirements:** Python 3, `numpy`, `matplotlib`.
+
+Install dependencies if needed:
+
+```bash
+pip install numpy matplotlib
+```
+
+Run the script from the project directory:
+
+```bash
+python3 PowerCal650V2.py
+```
+
+Three PNG files will be saved in the working directory and the plots will open interactively:
+
+- `PowerCal650_fig1_650MHz_single_cavity.png`
+- `PowerCal650_fig2_PIPII_annual_cost.png`
+- `PowerCal650_fig3_LCLSII_annual_cost.png`
+
+Key computed values will be printed to the terminal for each of the three blocks.
+
+---
+
+## Running the MATLAB script
+
+Open `PowerCal650V2.m` in MATLAB and run it, or execute it from the MATLAB command window:
+
+```matlab
+run('PowerCal650V2.m')
+```
+
+Or from a terminal with MATLAB on the path:
+
+```bash
+matlab -batch "run('PowerCal650V2.m')"
+```
+
+Three figure windows will open and key computed values will be printed to the command window. Note: MATLAB will emit a legend warning in Block 1 because the original legend call specifies three entries but only one curve is plotted; this does not affect any computed values.
+
+---
+
+## Cross-validating Python against MATLAB
+
+Both scripts print the same quantities in the same order and format. To compare, run both and diff the terminal output. All values should agree to the precision shown (6 significant figures).
 
 ---
 
@@ -24,7 +78,7 @@ where $\chi_\text{loss}$ is the fractional transmission loss in the waveguide or
 
 ## What the Script Does
 
-The script is organized into three sequential calculation blocks covering the PIP-II linac at Fermilab and the LCLS-II and LCLS-II HE linacs at SLAC.
+The script is organized into three sequential calculation blocks.
 
 **Block 1 — 650 MHz single-cavity power curve (Figure 1).** For the 650 MHz high-beta (HB650, B92 geometry) cavity, the script computes the optimal coupling and loaded quality factor that minimize generator power at a 40 Hz static detuning offset. It then sweeps detuning from −50 Hz to +50 Hz and plots generator power in kilowatts after correcting for waveguide transmission losses (6%), DC high-voltage supply efficiency (95%), and klystron wall-plug efficiency (80%). Annotations on the figure mark the reflected-power region and the detuning at which all RF power is delivered to the beam.
 
@@ -68,4 +122,4 @@ The reference presentation evaluates three distinct operating regimes for PIP-II
 | Pulsed beam, CW RF | 10 | 0.18 | 3.3 |
 | CW RF and CW beam | 10.9 | 15 | 3.5 |
 
-The presentation concludes that operating with a pulsed beam but continuous-wave RF—a scenario relevant when resonance control does not allow the RF to be gated with the beam—requires approximately 10 MW from the grid and costs roughly 2.5 M$/year more than full pulsed operation. The MATLAB script computes the RF-only portion of this cost as a function of detuning, providing a tool for understanding how resonance control performance (i.e., how well detuning is suppressed) translates into operational electricity expenditure.
+The presentation concludes that operating with a pulsed beam but continuous-wave RF—a scenario relevant when resonance control does not allow the RF to be gated with the beam—requires approximately 10 MW from the grid and costs roughly 2.5 M$/year more than full pulsed operation. The script computes the RF-only portion of this cost as a function of detuning, providing a tool for understanding how resonance control performance (i.e., how well detuning is suppressed) translates into operational electricity expenditure.
