@@ -150,8 +150,10 @@ cost_electricity = 0.08              # $/kWh
 hours_on = 5600                      # Operating hours per year
 
 fig2, ax2 = plt.subplots(num=101)
-ax2.plot(dF1, (PAll_PIPII / etaDCHV / etaW) * hours_on * cost_electricity * 1e-6)
-ax2.plot(dF1, DutyF * (PAll_PIPII / etaDCHV / etaW) * hours_on * cost_electricity * 1e-6)
+ax2.plot(dF1, (PAll_PIPII / etaDCHV / etaW) * hours_on * cost_electricity * 1e-6,
+         label='CW')
+ax2.plot(dF1, DutyF * (PAll_PIPII / etaDCHV / etaW) * hours_on * cost_electricity * 1e-6,
+         label='Pulsed')
 ax2.set_xlabel('Detuning [Hz]')
 ax2.set_ylabel('Annual RF Cost [M$]')
 ax2.set_xlim([0, 40])
@@ -163,7 +165,7 @@ ax2.set_title(
     r'$\eta_{DC}$ = 0.95, $\eta_w$ = 0.80',
     fontsize=10
 )
-ax2.legend(['CW', 'Pulsed Operation'], frameon=False)
+ax2.legend(frameon=False)
 ax2.tick_params(labelsize=12)
 
 # =============================================================================
@@ -200,7 +202,7 @@ PGopt013HE = (V013HE**2 * (1 + betaopt13HE) / (4 * betaopt13HE * RQ13 * QLopt13H
 p13ALL = (1 - xloss650)**-1 * (280 * PGopt013 + 184 * PGopt013HE) * 1e-3  # kW
 
 fig3, ax3 = plt.subplots(num=11)
-ax3.plot(dF1, p13ALL * 5600 * 0.14 * 1e-6, linewidth=2)  # 5600 hrs, $0.14/kWh
+ax3.plot(dF1, p13ALL * 5600 * 0.14 * 1e-6, linewidth=2, label='Instantaneous')  # 5600 hrs, $0.14/kWh
 ax3.set_xlabel('Detuning [Hz]')
 ax3.set_ylabel('Annual RF Cost [M$]')
 ax3.set_xlim([0, 10])
@@ -264,6 +266,150 @@ print(f"  PGopt013 at dF=0 (W)       = {PGopt013[i0]:.6f}")
 print(f"  PGopt013HE at dF=0 (W)     = {PGopt013HE[i0]:.6f}")
 print(f"  p13ALL at dF=0 (kW)        = {p13ALL[i0]:.6f}")
 print(f"  Annual cost at dF=0 (M$)   = {p13ALL[i0] * 5600 * 0.14 * 1e-6:.6f}")
+
+# =============================================================================
+# Block 4 — Average power with Gaussian detuning
+#
+# The generator power is quadratic in detuning:
+#   P(df) = A * [(1 + Vbopt/V0)^2 + (df/fhalf)^2]
+# For a zero-mean Gaussian df with RMS sigma, E[df^2] = sigma^2, so:
+#   E[P] = A * [(1 + Vbopt/V0)^2 + (sigma/fhalf)^2]
+# Two cases: sigma = fhalf/2  ->  (sigma/fhalf)^2 = 1/4
+#            sigma = fhalf/4  ->  (sigma/fhalf)^2 = 1/16
+# =============================================================================
+
+def avg_power(A, beam_term, sigma_over_fhalf):
+    """Average generator power (W) for Gaussian detuning."""
+    return A * (beam_term**2 + sigma_over_fhalf**2)
+
+# --- prefactors A for each cavity family ---
+A_HB650  = V0**2    * (1 + betaopt)    / (4 * betaopt    * RQ    * QLopt)    * 1e-3  # kW
+A_SSR1   = V0SSR1**2 * (1 + betaoptSSR1) / (4 * betaoptSSR1 * RQSSR1 * QLoptSSR1)
+A_SSR2   = V0SSR2**2 * (1 + betaoptSSR2) / (4 * betaoptSSR2 * RQSSR2 * QLoptSSR2)
+A_LB650  = V0LB**2  * (1 + betaoptLB)  / (4 * betaoptLB  * RQLB  * QLoptLB)
+A_HB650b = V0HB**2  * (1 + betaoptHB)  / (4 * betaoptHB  * RQHB  * QLoptHB)
+A_13     = V013**2   * (1 + betaopt13)  / (4 * betaopt13  * RQ13  * QLopt13)
+A_13HE   = V013HE**2 * (1 + betaopt13HE) / (4 * betaopt13HE * RQ13 * QLopt13HE)
+
+# --- beam-loading terms (1 + Vbopt/V0) for each family ---
+bt_HB650  = 1 + Vbopt      / V0
+bt_SSR1   = 1 + VboptSSR1  / V0SSR1
+bt_SSR2   = 1 + VboptSSR2  / V0SSR2
+bt_LB650  = 1 + VboptLB    / V0LB
+bt_HB650b = 1 + VboptHB    / V0HB
+bt_13     = 1 + Vbopt13    / V013
+bt_13HE   = 1 + Vbopt13HE  / V013HE
+
+for label, sigma_ratio in [('sigma = BW    (sigma/fhalf = 1)',   1.0),
+                            ('sigma = BW/2  (sigma/fhalf = 1/2)', 0.5),
+                            ('sigma = BW/4  (sigma/fhalf = 1/4)', 0.25)]:
+
+    print()
+    print(f"=== BLOCK 4: Gaussian detuning — {label} ===")
+
+    # -- HB650 single cavity --
+    P_avg_HB650 = avg_power(A_HB650, bt_HB650, sigma_ratio)  # kW
+    wp_avg_HB650 = P_avg_HB650 * (1 - xloss650)**-1 / etaDCHV / etaW
+    print(f"  HB650 avg generator power (kW)       = {P_avg_HB650:.4f}")
+    print(f"  HB650 avg wall-plug power (kW)       = {wp_avg_HB650:.4f}")
+
+    # -- PIP-II aggregate --
+    P_avg_SSR1   = avg_power(A_SSR1,   bt_SSR1,   sigma_ratio)
+    P_avg_SSR2   = avg_power(A_SSR2,   bt_SSR2,   sigma_ratio)
+    P_avg_LB650  = avg_power(A_LB650,  bt_LB650,  sigma_ratio)
+    P_avg_HB650b = avg_power(A_HB650b, bt_HB650b, sigma_ratio)
+
+    PSSR_avg = 16 * (P_avg_SSR1 + 1.33 * 7000)  + 35 * (P_avg_SSR2 + 1.33 * 20000)
+    P650_avg = 36 * (P_avg_LB650 + 1.33 * 40000) + 24 * (P_avg_HB650b + 70000 * 1.33)
+    PAll_PIPII_avg = ((1 / (1 - xlossSSR1)) * PSSR_avg
+                    + (1 / (1 - xloss650))  * P650_avg) * 1e-3  # kW
+
+    CW_cost_avg    = (PAll_PIPII_avg / etaDCHV / etaW) * hours_on * cost_electricity * 1e-6
+    pulse_cost_avg = DutyF * CW_cost_avg
+
+    print(f"  PIP-II avg total power CW (kW)       = {PAll_PIPII_avg:.2f}")
+    print(f"  PIP-II CW annual cost (M$/yr)        = {CW_cost_avg:.4f}")
+    print(f"  PIP-II pulsed annual cost (M$/yr)    = {pulse_cost_avg:.4f}")
+
+    # -- LCLS-II aggregate --
+    P_avg_13   = avg_power(A_13,   bt_13,   sigma_ratio)
+    P_avg_13HE = avg_power(A_13HE, bt_13HE, sigma_ratio)
+
+    p13ALL_avg = (1 - xloss650)**-1 * (280 * P_avg_13 + 184 * P_avg_13HE) * 1e-3  # kW
+    cost13_avg = p13ALL_avg * 5600 * 0.14 * 1e-6
+
+    print(f"  LCLS-II avg total power (kW)         = {p13ALL_avg:.2f}")
+    print(f"  LCLS-II annual cost (M$/yr)          = {cost13_avg:.4f}")
+
+# --- Overlay Gaussian average lines on existing fig2 (PIP-II) and fig3 (LCLS-II) ---
+sigma_ratios = [1.0, 0.5, 0.25]
+colors       = ['tab:red', 'tab:orange', 'tab:green']
+labels_avg   = [r'CW avg, $\sigma$ = BW',
+                r'CW avg, $\sigma$ = BW/2',
+                r'CW avg, $\sigma$ = BW/4']
+
+for sr, col, lbl in zip(sigma_ratios, colors, labels_avg):
+    # PIP-II
+    P_SSR1_   = avg_power(A_SSR1,   bt_SSR1,   sr)
+    P_SSR2_   = avg_power(A_SSR2,   bt_SSR2,   sr)
+    P_LB650_  = avg_power(A_LB650,  bt_LB650,  sr)
+    P_HB650_  = avg_power(A_HB650b, bt_HB650b, sr)
+    PSSR_  = 16 * (P_SSR1_  + 1.33 * 7000)  + 35 * (P_SSR2_  + 1.33 * 20000)
+    P650_  = 36 * (P_LB650_ + 1.33 * 40000) + 24 * (P_HB650_ + 70000 * 1.33)
+    avg_kW = ((1/(1-xlossSSR1))*PSSR_ + (1/(1-xloss650))*P650_) * 1e-3
+    avg_cost = (avg_kW / etaDCHV / etaW) * hours_on * cost_electricity * 1e-6
+    ax2.axhline(avg_cost, linestyle='--', color=col, label=lbl)
+
+    # LCLS-II
+    P_13_   = avg_power(A_13,   bt_13,   sr)
+    P_13HE_ = avg_power(A_13HE, bt_13HE, sr)
+    avg_kW  = (1 - xloss650)**-1 * (280 * P_13_ + 184 * P_13HE_) * 1e-3
+    avg_cost_13 = avg_kW * 5600 * 0.14 * 1e-6
+    ax3.axhline(avg_cost_13, linestyle='--', color=col, label=lbl.replace('CW avg, ', ''))
+
+ax2.legend(frameon=False)
+ax3.legend(frameon=False)
+
+# =============================================================================
+# Block 5 — Required RMS detuning for <0.1 expected bandwidth exceedances per hour
+#
+# At 1 kHz sampling over 1 hour there are 3,600,000 samples.
+# Expected exceedances = N * P(|df| > fhalf) = 0.1
+# => P(|df| > fhalf) = 0.1 / N = 2*(1 - Phi(fhalf/sigma))
+# => fhalf/sigma = Phi_inv(1 - 0.1/(2*N))
+# =============================================================================
+from scipy.stats import norm as _norm
+
+sample_rate    = 1000          # Hz
+duration_hours = 1
+N_samples      = sample_rate * 3600 * duration_hours
+target_exceedances = 0.1
+
+p_required = target_exceedances / N_samples
+z_required = _norm.ppf(1 - p_required / 2)   # fhalf/sigma threshold
+
+fhalfs = {
+    'SSR1  (325 MHz)'        : fhalfSSR1,
+    'SSR2  (325 MHz)'        : fhalfSSR2,
+    'LB650 (650 MHz)'        : fhalfLB,
+    'HB650 (650 MHz)'        : fhalfHB,
+    'LCLS-II (1300 MHz)'     : fhalf13,
+    'LCLS-II HE (1300 MHz)'  : fhalf13HE,
+}
+
+print()
+print("=== BLOCK 5: Max RMS detuning for <0.1 bandwidth exceedances per hour ===")
+print(f"  Sampling rate:              {sample_rate} Hz")
+print(f"  Duration:                   {duration_hours} hour")
+print(f"  Total samples:              {N_samples:,}")
+print(f"  Target expected exceedances:{target_exceedances}")
+print(f"  Required P(|df|>BW):        {p_required:.4e}")
+print(f"  Required fhalf/sigma (z):   {z_required:.4f}  (i.e. sigma < BW/{z_required:.1f})")
+print()
+print(f"  {'Cavity':<26}  {'f_half (Hz)':>12}  {'Max sigma (Hz)':>14}")
+print("  " + "-" * 56)
+for name, fh in fhalfs.items():
+    print(f"  {name:<26}  {fh:>12.2f}  {fh/z_required:>14.4f}")
 
 fig1.savefig('PowerCal650_fig1_650MHz_single_cavity.png', dpi=150, bbox_inches='tight')
 fig2.savefig('PowerCal650_fig2_PIPII_annual_cost.png', dpi=150, bbox_inches='tight')

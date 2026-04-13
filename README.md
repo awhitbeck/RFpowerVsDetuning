@@ -10,12 +10,12 @@ This script computes the RF generator power required to maintain stable accelera
 
 ## Running the Python script
 
-**Requirements:** Python 3, `numpy`, `matplotlib`.
+**Requirements:** Python 3, `numpy`, `matplotlib`, `scipy`.
 
 Install dependencies if needed:
 
 ```bash
-pip install numpy matplotlib
+pip install numpy matplotlib scipy
 ```
 
 Run the script from the project directory:
@@ -30,7 +30,7 @@ Three PNG files will be saved in the working directory and the plots will open i
 - `PowerCal650_fig2_PIPII_annual_cost.png`
 - `PowerCal650_fig3_LCLSII_annual_cost.png`
 
-Key computed values will be printed to the terminal for each of the three blocks.
+Key computed values will be printed to the terminal for each of the five blocks.
 
 ---
 
@@ -85,6 +85,22 @@ The script is organized into three sequential calculation blocks.
 **Block 2 — PIP-II total annual RF electricity cost (Figure 101).** This block computes aggregate RF power across all four SRF cryomodule families in the PIP-II linac: 16 SSR1 cryomodules (325 MHz), 35 SSR2 cryomodules (325 MHz), 36 low-beta 650 MHz (LB650) cryomodules, and 24 high-beta 650 MHz (HB650) cryomodules. For each family the optimal coupling is determined at a static detuning offset of 20 Hz. The idle RF source station power ($P_\text{station}$) for each section—7 kW (SSR1), 20 kW (SSR2), 40 kW (LB650), and 70 kW (HB650)—is added with a factor of 1.33, which equals $(1-\eta)/\eta$ for an RF source efficiency of $\eta = 0.43$ as specified in the reference presentation. The total is corrected for waveguide losses and efficiency factors, then multiplied by assumed operating hours (5600 per year) and an electricity rate ($0.08/kWh) to produce the annual RF electricity cost in millions of dollars. Both a continuous-wave (CW) and a pulsed beam scenario are plotted on the same axes.
 
 **Block 3 — LCLS-II and LCLS-II HE annual RF cost (Figure 11).** The same methodology is applied to the 1300 MHz nine-cell cavities of the LCLS-II (280 cavities) and LCLS-II HE (184 cavities) linacs. A separate electricity rate of $0.14/kWh is used, reflecting the different operating site.
+
+**Block 4 — Average power with Gaussian-distributed detuning.** The instantaneous power curves in Blocks 2 and 3 show power as a function of a fixed detuning offset. In practice, microphonics-driven detuning is stochastic. This block treats the cavity detuning as a zero-mean Gaussian random variable and computes the resulting average generator power analytically. Because the power formula is quadratic in detuning:
+
+$$P(\delta f) = A\left[(1 + V_b/V_0)^2 + (\delta f / f_\text{half})^2\right]$$
+
+the expectation over a Gaussian with RMS $\sigma$ reduces to:
+
+$$\langle P \rangle = A\left[(1 + V_b/V_0)^2 + (\sigma / f_\text{half})^2\right]$$
+
+Three values of $\sigma$ are evaluated: $\sigma = f_\text{half}$, $\sigma = f_\text{half}/2$, and $\sigma = f_\text{half}/4$. The resulting average annual costs are overlaid as horizontal dashed lines on Figures 2 and 3, allowing direct comparison with the instantaneous power curves.
+
+**Block 5 — Maximum allowable RMS detuning for rare bandwidth exceedances.** This block asks: at 1 kHz sampling over one hour, how small must the RMS detuning be such that the expected number of samples with $|\delta f| > f_\text{half}$ is less than 0.1? With $N = 3{,}600{,}000$ samples, this requires:
+
+$$P(|\delta f| > f_\text{half}) = \frac{0.1}{N} \approx 2.8 \times 10^{-8}$$
+
+which corresponds to a threshold of $f_\text{half}/\sigma \approx 5.6$ standard deviations, i.e., $\sigma < f_\text{half}/5.6$. The absolute maximum allowable RMS detuning is printed for each cavity family.
 
 ---
 

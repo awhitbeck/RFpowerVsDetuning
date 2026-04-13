@@ -227,3 +227,140 @@ xlabel('Detuning [Hz]')
 ylabel('Annual RF Cost [M$]')
 set(gca,'FontSize',12)
 xlim([0 10])
+
+%*************************************************************************
+% Block 4 — Average power with Gaussian detuning
+%
+% P(df) = A*[(1+Vbopt/V0)^2 + (df/fhalf)^2]
+% For zero-mean Gaussian df with RMS sigma: E[P] = A*[(1+Vbopt/V0)^2 + (sigma/fhalf)^2]
+% sigma = fhalf/2  ->  (sigma/fhalf)^2 = 1/4
+% sigma = fhalf/4  ->  (sigma/fhalf)^2 = 1/16
+%*************************************************************************
+
+A_HB650  = V0^2    * (1+betaopt)    / (4*betaopt    *RQ    *QLopt)    * 1e-3; % kW
+A_SSR1   = V0SSR1^2 * (1+betaoptSSR1) / (4*betaoptSSR1*RQSSR1*QLoptSSR1);
+A_SSR2   = V0SSR2^2 * (1+betaoptSSR2) / (4*betaoptSSR2*RQSSR2*QLoptSSR2);
+A_LB650  = V0LB^2  * (1+betaoptLB)  / (4*betaoptLB *RQLB *QLoptLB);
+A_HB650b = V0HB^2  * (1+betaoptHB)  / (4*betaoptHB *RQHB *QLoptHB);
+A_13     = V013^2   * (1+betaopt13)  / (4*betaopt13 *RQ13 *QLopt13);
+A_13HE   = V013HE^2 * (1+betaopt13HE) / (4*betaopt13HE*RQ13*QLopt13HE);
+
+bt_HB650  = 1 + Vbopt     /V0;
+bt_SSR1   = 1 + VboptSSR1 /V0SSR1;
+bt_SSR2   = 1 + VboptSSR2 /V0SSR2;
+bt_LB650  = 1 + VboptLB   /V0LB;
+bt_HB650b = 1 + VboptHB   /V0HB;
+bt_13     = 1 + Vbopt13   /V013;
+bt_13HE   = 1 + Vbopt13HE /V013HE;
+
+sigma_ratios = [1.0, 0.5, 0.25];
+sigma_labels = {'sigma = BW    (sigma/fhalf = 1)', 'sigma = BW/2  (sigma/fhalf = 1/2)', 'sigma = BW/4  (sigma/fhalf = 1/4)'};
+
+for k = 1:2
+    sr = sigma_ratios(k);
+    fprintf('\n=== BLOCK 4: Gaussian detuning — %s ===\n', sigma_labels{k})
+
+    % HB650 single cavity
+    P_avg_HB650  = A_HB650  * (bt_HB650^2  + sr^2);  % kW
+    wp_avg_HB650 = P_avg_HB650 * (1-xloss650)^-1 / etaDCHV / etaW;
+    fprintf('  HB650 avg generator power (kW)       = %.4f\n', P_avg_HB650)
+    fprintf('  HB650 avg wall-plug power (kW)       = %.4f\n', wp_avg_HB650)
+
+    % PIP-II aggregate
+    P_avg_SSR1   = A_SSR1   * (bt_SSR1^2   + sr^2);
+    P_avg_SSR2   = A_SSR2   * (bt_SSR2^2   + sr^2);
+    P_avg_LB650  = A_LB650  * (bt_LB650^2  + sr^2);
+    P_avg_HB650b = A_HB650b * (bt_HB650b^2 + sr^2);
+
+    PSSR_avg = 16*(P_avg_SSR1  + 1.33*7000)  + 35*(P_avg_SSR2  + 1.33*20000);
+    P650_avg = 36*(P_avg_LB650 + 1.33*40000) + 24*(P_avg_HB650b + 70000*1.33);
+    PAll_avg = ((1/(1-xlossSSR1))*PSSR_avg + (1/(1-xloss650))*P650_avg)*1e-3; % kW
+
+    CW_cost_avg    = (PAll_avg/etaDCHV/etaW)*hours_on*cost_electricity*1e-6;
+    pulse_cost_avg = DutyF*CW_cost_avg;
+    fprintf('  PIP-II avg total power CW (kW)       = %.2f\n', PAll_avg)
+    fprintf('  PIP-II CW annual cost (M$/yr)        = %.4f\n', CW_cost_avg)
+    fprintf('  PIP-II pulsed annual cost (M$/yr)    = %.4f\n', pulse_cost_avg)
+
+    % LCLS-II aggregate
+    P_avg_13   = A_13   * (bt_13^2   + sr^2);
+    P_avg_13HE = A_13HE * (bt_13HE^2 + sr^2);
+    p13ALL_avg = (1-xloss650)^-1*(280*P_avg_13 + 184*P_avg_13HE)*1e-3; % kW
+    cost13_avg = p13ALL_avg*5600*0.14*1e-6;
+    fprintf('  LCLS-II avg total power (kW)         = %.2f\n', p13ALL_avg)
+    fprintf('  LCLS-II annual cost (M$/yr)          = %.4f\n', cost13_avg)
+end
+
+% Figure: PIP-II CW cost with Gaussian average lines
+colors_avg = {'[0.80 0.00 0.00]','[0.85 0.33 0.10]','[0.47 0.67 0.19]'};
+figure(200)
+plot(dF1,(PAll_PIPII/etaDCHV/etaW)*hours_on*cost_electricity*1e-6,'b','DisplayName','Instantaneous CW power')
+hold on
+for k = 1:2
+    sr = sigma_ratios(k);
+    P_SSR1_   = A_SSR1   * (bt_SSR1^2   + sr^2);
+    P_SSR2_   = A_SSR2   * (bt_SSR2^2   + sr^2);
+    P_LB650_  = A_LB650  * (bt_LB650^2  + sr^2);
+    P_HB650_  = A_HB650b * (bt_HB650b^2 + sr^2);
+    PSSR_  = 16*(P_SSR1_  + 1.33*7000)  + 35*(P_SSR2_  + 1.33*20000);
+    P650_  = 36*(P_LB650_ + 1.33*40000) + 24*(P_HB650_  + 70000*1.33);
+    avg_kW = ((1/(1-xlossSSR1))*PSSR_ + (1/(1-xloss650))*P650_)*1e-3;
+    avg_cost = (avg_kW/etaDCHV/etaW)*hours_on*cost_electricity*1e-6;
+    yline(avg_cost,'--','Color',colors_avg{k},'DisplayName',sigma_labels{k},'LineWidth',1.5)
+end
+xlabel('Detuning [Hz]')
+ylabel('Annual RF Cost [M$]')
+xlim([0 40])
+legend('boxoff')
+set(gca,'FontSize',12)
+
+% Figure: LCLS-II cost with Gaussian average lines
+figure(201)
+plot(dF1,p13ALL*5600*0.14*1e-6,'b','LineWidth',2,'DisplayName','Instantaneous power')
+hold on
+for k = 1:2
+    sr = sigma_ratios(k);
+    P_13_   = A_13   * (bt_13^2   + sr^2);
+    P_13HE_ = A_13HE * (bt_13HE^2 + sr^2);
+    avg_kW  = (1-xloss650)^-1*(280*P_13_ + 184*P_13HE_)*1e-3;
+    avg_cost = avg_kW*5600*0.14*1e-6;
+    yline(avg_cost,'--','Color',colors_avg{k},'DisplayName',sigma_labels{k},'LineWidth',1.5)
+end
+xlabel('Detuning [Hz]')
+ylabel('Annual RF Cost [M$]')
+xlim([0 10])
+legend('boxoff')
+set(gca,'FontSize',12)
+
+%*************************************************************************
+% Block 5 — Required RMS detuning for <0.1 expected bandwidth exceedances per hour
+%
+% N * P(|df| > fhalf) = 0.1
+% P(|df| > fhalf) = 2*(1 - normcdf(fhalf/sigma))
+% => fhalf/sigma = norminv(1 - 0.1/(2*N))
+%*************************************************************************
+
+sample_rate        = 1000;
+duration_hours     = 1;
+N_samples          = sample_rate * 3600 * duration_hours;
+target_exceedances = 0.1;
+
+p_required = target_exceedances / N_samples;
+z_required = norminv(1 - p_required / 2);
+
+cavity_names = {'SSR1  (325 MHz)', 'SSR2  (325 MHz)', 'LB650 (650 MHz)', ...
+                'HB650 (650 MHz)', 'LCLS-II (1300 MHz)', 'LCLS-II HE (1300 MHz)'};
+fhalfs_list  = [fhalfSSR1, fhalfSSR2, fhalfLB, fhalfHB, fhalf13, fhalf13HE];
+
+fprintf('\n=== BLOCK 5: Max RMS detuning for <0.1 bandwidth exceedances per hour ===\n')
+fprintf('  Sampling rate:               %d Hz\n', sample_rate)
+fprintf('  Duration:                    %d hour\n', duration_hours)
+fprintf('  Total samples:               %d\n', N_samples)
+fprintf('  Target expected exceedances: %.1f\n', target_exceedances)
+fprintf('  Required P(|df|>BW):         %.4e\n', p_required)
+fprintf('  Required fhalf/sigma (z):    %.4f  (i.e. sigma < BW/%.1f)\n', z_required, z_required)
+fprintf('\n  %-26s  %12s  %14s\n', 'Cavity', 'f_half (Hz)', 'Max sigma (Hz)')
+fprintf('  %s\n', repmat('-',1,56))
+for k = 1:length(cavity_names)
+    fprintf('  %-26s  %12.2f  %14.4f\n', cavity_names{k}, fhalfs_list(k), fhalfs_list(k)/z_required)
+end
